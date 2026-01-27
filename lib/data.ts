@@ -2,8 +2,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Movie, PracticeQuestion, TestQuestion } from './types';
 
-// プロジェクトルートへのパス（appディレクトリの親）
-const DATA_DIR = join(process.cwd(), '..');
+// データディレクトリへのパス
+const DATA_DIR = join(process.cwd(), 'data');
 
 // TSVファイルをパース
 function parseTsv<T>(content: string, mapper: (row: string[]) => T): T[] {
