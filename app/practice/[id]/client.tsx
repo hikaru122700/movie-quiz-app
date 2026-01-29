@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Movie, PracticeQuestion, MovieComment, Prediction } from "@/lib/types";
+import { Movie, PracticeQuestion, MovieComment, Prediction, MovieNouns, FictionNouns } from "@/lib/types";
 
 interface Props {
   question: PracticeQuestion;
@@ -57,6 +57,15 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
 
+  // 名詞キャッシュ関連
+  const [nounsA, setNounsA] = useState<string[]>([]);
+  const [nounsB, setNounsB] = useState<string[]>([]);
+  const [correctNounsA, setCorrectNounsA] = useState<string[]>([]);
+  const [correctNounsB, setCorrectNounsB] = useState<string[]>([]);
+
+  // 融合ストーリー名詞
+  const [fictionNouns, setFictionNouns] = useState<string[]>([]);
+
   const movieA = movies.find(m => m.id === selectedA);
   const movieB = movies.find(m => m.id === selectedB);
   const correctMovieA = movies.find(m => m.id === question.id_a);
@@ -70,6 +79,7 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
   useEffect(() => {
     if (selectedA) {
       fetchMovieComments(selectedA, setMovieCommentsA);
+      fetchMovieNouns(selectedA, setNounsA);
     }
   }, [selectedA]);
 
@@ -77,18 +87,21 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
   useEffect(() => {
     if (selectedB) {
       fetchMovieComments(selectedB, setMovieCommentsB);
+      fetchMovieNouns(selectedB, setNounsB);
     }
   }, [selectedB]);
 
   // 予測取得
   useEffect(() => {
     fetchPredictions();
+    fetchFictionNouns();
   }, [question.index]);
 
   // 正解映画Aのコメント取得
   useEffect(() => {
     if (question.id_a) {
       fetchMovieComments(question.id_a, setCorrectMovieCommentsA);
+      fetchMovieNouns(question.id_a, setCorrectNounsA);
     }
   }, [question.id_a]);
 
@@ -96,6 +109,7 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
   useEffect(() => {
     if (question.id_b) {
       fetchMovieComments(question.id_b, setCorrectMovieCommentsB);
+      fetchMovieNouns(question.id_b, setCorrectNounsB);
     }
   }, [question.id_b]);
 
@@ -166,6 +180,39 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
       }
     } catch (error) {
       console.error("Failed to fetch comments:", error);
+    }
+  };
+
+  const fetchMovieNouns = async (movieId: number, setter: (nouns: string[]) => void) => {
+    try {
+      const res = await fetch(`/api/nouns?movieId=${movieId}`);
+      if (res.ok) {
+        const data: MovieNouns | null = await res.json();
+        if (data && data.nouns) {
+          setter(data.nouns);
+        } else {
+          setter([]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch nouns:", error);
+    }
+  };
+
+  const fetchFictionNouns = async () => {
+    try {
+      // question.index は 1-indexed, DBは 0-indexed
+      const res = await fetch(`/api/nouns/fiction?questionIndex=${question.index - 1}`);
+      if (res.ok) {
+        const data: FictionNouns | null = await res.json();
+        if (data && data.nouns) {
+          setFictionNouns(data.nouns);
+        } else {
+          setFictionNouns([]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch fiction nouns:", error);
     }
   };
 
@@ -526,6 +573,20 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
         <p className="whitespace-pre-wrap leading-relaxed">
           {question.story}
         </p>
+        {fictionNouns.length > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <h3 className="text-sm font-medium text-gray-600 mb-2">
+              抽出名詞 ({fictionNouns.length}個)
+            </h3>
+            <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
+              {fictionNouns.map((noun, idx) => (
+                <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                  {noun}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -554,9 +615,20 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
                   {showStoryA ? "▼ あらすじを隠す" : "▶ あらすじを見る"}
                 </button>
                 {showStoryA && (
-                  <p className="mt-2 text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
-                    {movieA.story}
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
+                      {movieA.story}
+                    </p>
+                    {nounsA.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {nounsA.map((noun, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-orange-100 text-orange-800 text-xs rounded">
+                            {noun}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div>
@@ -620,9 +692,20 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
                   {showStoryB ? "▼ あらすじを隠す" : "▶ あらすじを見る"}
                 </button>
                 {showStoryB && (
-                  <p className="mt-2 text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
-                    {movieB.story}
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
+                      {movieB.story}
+                    </p>
+                    {nounsB.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {nounsB.map((noun, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-orange-100 text-orange-800 text-xs rounded">
+                            {noun}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div>
@@ -698,6 +781,15 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
                     <p className="text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
                       {correctMovieA.story}
                     </p>
+                    {correctNounsA.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {correctNounsA.map((noun, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-orange-100 text-orange-800 text-xs rounded">
+                            {noun}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-2">
                       <button
                         onClick={() => setShowCorrectCommentsA(!showCorrectCommentsA)}
@@ -746,6 +838,15 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
                     <p className="text-sm bg-gray-50 p-3 rounded max-h-48 overflow-y-auto">
                       {correctMovieB.story}
                     </p>
+                    {correctNounsB.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {correctNounsB.map((noun, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-orange-100 text-orange-800 text-xs rounded">
+                            {noun}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-2">
                       <button
                         onClick={() => setShowCorrectCommentsB(!showCorrectCommentsB)}

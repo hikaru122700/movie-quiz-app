@@ -70,3 +70,19 @@ export interface Prediction {
   upload_name?: string;
   upload_date?: string;
 }
+
+// 映画名詞キャッシュ
+export interface MovieNouns {
+  id: number;
+  movie_id: number;
+  nouns: string[];
+  created_at: string;
+}
+
+// 融合ストーリー名詞キャッシュ
+export interface FictionNouns {
+  id: number;
+  question_index: number;
+  nouns: string[];
+  created_at: string;
+}

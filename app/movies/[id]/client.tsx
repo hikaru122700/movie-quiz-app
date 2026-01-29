@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Movie, MovieComment } from "@/lib/types";
+import { Movie, MovieComment, MovieNouns } from "@/lib/types";
 
 interface Props {
   movie: Movie;
@@ -15,12 +15,17 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
   const [commentSaved, setCommentSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // 名詞キャッシュ関連
+  const [nouns, setNouns] = useState<string[]>([]);
+  const [nounsLoading, setNounsLoading] = useState(true);
+
   // 編集関連
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
 
   useEffect(() => {
     fetchComments();
+    fetchNouns();
   }, [movie.id]);
 
   const fetchComments = async () => {
@@ -34,6 +39,24 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
       console.error("Failed to fetch comments:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNouns = async () => {
+    try {
+      const res = await fetch(`/api/nouns?movieId=${movie.id}`);
+      if (res.ok) {
+        const data: MovieNouns | null = await res.json();
+        if (data && data.nouns) {
+          setNouns(data.nouns);
+        } else {
+          setNouns([]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch nouns:", error);
+    } finally {
+      setNounsLoading(false);
     }
   };
 
@@ -140,6 +163,32 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
         <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
           {movie.story}
         </p>
+      </div>
+
+      {/* 名詞キャッシュ表示 */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="font-semibold mb-4">
+          抽出名詞
+          <span className="text-sm font-normal text-gray-500 ml-2">
+            ({nouns.length}個)
+          </span>
+        </h2>
+        {nounsLoading ? (
+          <p className="text-gray-400 text-sm">読み込み中...</p>
+        ) : nouns.length === 0 ? (
+          <p className="text-gray-400 text-sm">名詞キャッシュがありません</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {nouns.map((noun, idx) => (
+              <span
+                key={idx}
+                className="px-2 py-1 bg-orange-100 text-orange-800 text-sm rounded"
+              >
+                {noun}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

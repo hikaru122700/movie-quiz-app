@@ -248,3 +248,125 @@ export async function getMovieCommentCounts() {
   `;
   return counts;
 }
+
+// 名詞キャッシュテーブル初期化
+export async function initNounsTable() {
+  const db = getSQL();
+  await db`
+    CREATE TABLE IF NOT EXISTS movie_nouns (
+      id SERIAL PRIMARY KEY,
+      movie_id INTEGER NOT NULL UNIQUE,
+      nouns TEXT[] NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+}
+
+// 名詞キャッシュ取得（単一映画）
+export async function getMovieNouns(movieId: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM movie_nouns
+    WHERE movie_id = ${movieId}
+  `;
+  return result[0] || null;
+}
+
+// 名詞キャッシュ取得（全映画）
+export async function getAllMovieNouns() {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM movie_nouns
+    ORDER BY movie_id
+  `;
+  return result;
+}
+
+// 名詞キャッシュ追加/更新
+export async function upsertMovieNouns(movieId: number, nouns: string[]) {
+  const db = getSQL();
+  const result = await db`
+    INSERT INTO movie_nouns (movie_id, nouns)
+    VALUES (${movieId}, ${nouns})
+    ON CONFLICT (movie_id)
+    DO UPDATE SET nouns = ${nouns}, created_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  return result[0];
+}
+
+// 名詞キャッシュ全削除
+export async function deleteAllMovieNouns() {
+  const db = getSQL();
+  await db`DELETE FROM movie_nouns`;
+}
+
+// 名詞キャッシュの件数取得
+export async function getMovieNounsCount() {
+  const db = getSQL();
+  const result = await db`
+    SELECT COUNT(*) as count FROM movie_nouns
+  `;
+  return parseInt(result[0].count, 10);
+}
+
+// 融合ストーリー名詞テーブル初期化
+export async function initFictionNounsTable() {
+  const db = getSQL();
+  await db`
+    CREATE TABLE IF NOT EXISTS fiction_nouns (
+      id SERIAL PRIMARY KEY,
+      question_index INTEGER NOT NULL UNIQUE,
+      nouns TEXT[] NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+}
+
+// 融合ストーリー名詞取得（単一）
+export async function getFictionNouns(questionIndex: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM fiction_nouns
+    WHERE question_index = ${questionIndex}
+  `;
+  return result[0] || null;
+}
+
+// 融合ストーリー名詞取得（全件）
+export async function getAllFictionNouns() {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM fiction_nouns
+    ORDER BY question_index
+  `;
+  return result;
+}
+
+// 融合ストーリー名詞追加/更新
+export async function upsertFictionNouns(questionIndex: number, nouns: string[]) {
+  const db = getSQL();
+  const result = await db`
+    INSERT INTO fiction_nouns (question_index, nouns)
+    VALUES (${questionIndex}, ${nouns})
+    ON CONFLICT (question_index)
+    DO UPDATE SET nouns = ${nouns}, created_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  return result[0];
+}
+
+// 融合ストーリー名詞全削除
+export async function deleteAllFictionNouns() {
+  const db = getSQL();
+  await db`DELETE FROM fiction_nouns`;
+}
+
+// 融合ストーリー名詞の件数取得
+export async function getFictionNounsCount() {
+  const db = getSQL();
+  const result = await db`
+    SELECT COUNT(*) as count FROM fiction_nouns
+  `;
+  return parseInt(result[0].count, 10);
+}

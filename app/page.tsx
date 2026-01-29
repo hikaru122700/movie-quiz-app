@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NounsUploader from "./home-client";
 
 export default function Home() {
   return (
@@ -44,6 +45,8 @@ export default function Home() {
             <li>映画ごとにコメントを残せる</li>
           </ul>
         </Link>
+
+        <NounsUploader />
       </div>
     </div>
   );
