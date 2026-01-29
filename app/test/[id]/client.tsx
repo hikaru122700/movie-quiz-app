@@ -29,6 +29,12 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
   const [commentSavedA, setCommentSavedA] = useState(false);
   const [commentSavedB, setCommentSavedB] = useState(false);
 
+  // 編集関連
+  const [editingIdA, setEditingIdA] = useState<number | null>(null);
+  const [editingIdB, setEditingIdB] = useState<number | null>(null);
+  const [editTextA, setEditTextA] = useState("");
+  const [editTextB, setEditTextB] = useState("");
+
   const movieA = movies.find(m => m.id === selectedA);
   const movieB = movies.find(m => m.id === selectedB);
 
@@ -45,6 +51,22 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
       fetchMovieComments(selectedB, setMovieCommentsB);
     }
   }, [selectedB]);
+
+  // 問題切り替え時に状態をリセット & localStorageからコメント読み込み
+  useEffect(() => {
+    setSelectedA(null);
+    setSelectedB(null);
+    setSubmitted(false);
+    setCommentSaved(false);
+    setShowStoryA(false);
+    setShowStoryB(false);
+    setShowCommentsA(false);
+    setShowCommentsB(false);
+
+    // localStorageからコメント読み込み
+    const savedComment = localStorage.getItem(`test_comment_${question.id}`);
+    setComment(savedComment || "");
+  }, [question.id]);
 
   const fetchMovieComments = async (movieId: number, setter: (comments: MovieComment[]) => void) => {
     try {
@@ -78,23 +100,10 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
     }
   };
 
-  const handleSaveComment = async () => {
-    try {
-      await fetch("/api/answers/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionId: question.id,
-          selectedA: selectedA || 0,
-          selectedB: selectedB || 0,
-          comment,
-        }),
-      });
-      setCommentSaved(true);
-      setTimeout(() => setCommentSaved(false), 2000);
-    } catch (error) {
-      console.error("Failed to save comment:", error);
-    }
+  const handleSaveComment = () => {
+    localStorage.setItem(`test_comment_${question.id}`, comment);
+    setCommentSaved(true);
+    setTimeout(() => setCommentSaved(false), 2000);
   };
 
   const handleSaveMovieComment = async (movieId: number, commentText: string, isA: boolean) => {
@@ -121,6 +130,125 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
     } catch (error) {
       console.error("Failed to save movie comment:", error);
     }
+  };
+
+  const handleDeleteComment = async (commentId: number, movieId: number, isA: boolean) => {
+    if (!confirm("このコメントを削除しますか？")) return;
+    try {
+      const res = await fetch(`/api/comments/movie?id=${commentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        if (isA) {
+          fetchMovieComments(movieId, setMovieCommentsA);
+        } else {
+          fetchMovieComments(movieId, setMovieCommentsB);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to delete comment:", error);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: number, newText: string, movieId: number, isA: boolean) => {
+    if (!newText.trim()) return;
+    try {
+      const res = await fetch("/api/comments/movie", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: commentId, comment: newText }),
+      });
+      if (res.ok) {
+        if (isA) {
+          setEditingIdA(null);
+          setEditTextA("");
+          fetchMovieComments(movieId, setMovieCommentsA);
+        } else {
+          setEditingIdB(null);
+          setEditTextB("");
+          fetchMovieComments(movieId, setMovieCommentsB);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to update comment:", error);
+    }
+  };
+
+  const startEdit = (c: MovieComment, isA: boolean) => {
+    if (isA) {
+      setEditingIdA(c.id);
+      setEditTextA(c.comment);
+    } else {
+      setEditingIdB(c.id);
+      setEditTextB(c.comment);
+    }
+  };
+
+  const cancelEdit = (isA: boolean) => {
+    if (isA) {
+      setEditingIdA(null);
+      setEditTextA("");
+    } else {
+      setEditingIdB(null);
+      setEditTextB("");
+    }
+  };
+
+  const renderCommentItem = (c: MovieComment, movieId: number, isA: boolean) => {
+    const isEditing = isA ? editingIdA === c.id : editingIdB === c.id;
+    const editText = isA ? editTextA : editTextB;
+    const setEditText = isA ? setEditTextA : setEditTextB;
+
+    return (
+      <div key={c.id} className="text-sm p-2 bg-white rounded border">
+        {isEditing ? (
+          <div>
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="w-full p-2 border rounded h-16 resize-none text-sm"
+            />
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={() => handleUpdateComment(c.id, editText, movieId, isA)}
+                className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+              >
+                保存
+              </button>
+              <button
+                onClick={() => cancelEdit(isA)}
+                className="px-2 py-1 bg-gray-300 text-xs rounded hover:bg-gray-400"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p>{c.comment}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-gray-400">
+                {new Date(c.created_at).toLocaleString("ja-JP")}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => startEdit(c, isA)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  編集
+                </button>
+                <button
+                  onClick={() => handleDeleteComment(c.id, movieId, isA)}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -210,15 +338,8 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
                       {commentSavedA && <span className="text-green-600 text-xs">保存しました</span>}
                     </div>
                     {movieCommentsA.length > 0 && (
-                      <div className="mt-3 space-y-2 max-h-32 overflow-y-auto">
-                        {movieCommentsA.map((c) => (
-                          <div key={c.id} className="text-sm p-2 bg-white rounded border">
-                            <p>{c.comment}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {new Date(c.created_at).toLocaleString("ja-JP")}
-                            </p>
-                          </div>
-                        ))}
+                      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                        {movieCommentsA.map((c) => renderCommentItem(c, selectedA!, true))}
                       </div>
                     )}
                   </div>
@@ -283,15 +404,8 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
                       {commentSavedB && <span className="text-green-600 text-xs">保存しました</span>}
                     </div>
                     {movieCommentsB.length > 0 && (
-                      <div className="mt-3 space-y-2 max-h-32 overflow-y-auto">
-                        {movieCommentsB.map((c) => (
-                          <div key={c.id} className="text-sm p-2 bg-white rounded border">
-                            <p>{c.comment}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {new Date(c.created_at).toLocaleString("ja-JP")}
-                            </p>
-                          </div>
-                        ))}
+                      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                        {movieCommentsB.map((c) => renderCommentItem(c, selectedB!, false))}
                       </div>
                     )}
                   </div>

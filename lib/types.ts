@@ -50,3 +50,23 @@ export interface TestAnswer {
   comment: string;
   created_at: string;
 }
+
+// 予測アップロード
+export interface PredictionUpload {
+  id: number;
+  name: string;
+  created_at: string;
+  prediction_count: number;
+  correct_count: number;
+}
+
+// 予測
+export interface Prediction {
+  id: number;
+  upload_id: number;
+  question_index: number;
+  selected_a: number;
+  selected_b: number;
+  upload_name?: string;
+  upload_date?: string;
+}

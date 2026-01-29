@@ -15,6 +15,10 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
   const [commentSaved, setCommentSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // 編集関連
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+
   useEffect(() => {
     fetchComments();
   }, [movie.id]);
@@ -55,6 +59,48 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
     } catch (error) {
       console.error("Failed to save comment:", error);
     }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm("このコメントを削除しますか？")) return;
+    try {
+      const res = await fetch(`/api/comments/movie?id=${commentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchComments();
+      }
+    } catch (error) {
+      console.error("Failed to delete comment:", error);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: number) => {
+    if (!editText.trim()) return;
+    try {
+      const res = await fetch("/api/comments/movie", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: commentId, comment: editText }),
+      });
+      if (res.ok) {
+        setEditingId(null);
+        setEditText("");
+        fetchComments();
+      }
+    } catch (error) {
+      console.error("Failed to update comment:", error);
+    }
+  };
+
+  const startEdit = (c: MovieComment) => {
+    setEditingId(c.id);
+    setEditText(c.comment);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
   };
 
   return (
@@ -132,10 +178,52 @@ export default function MovieDetailClient({ movie, totalMovies }: Props) {
             <div className="space-y-3">
               {comments.map((c) => (
                 <div key={c.id} className="p-3 bg-gray-50 rounded">
-                  <p className="text-gray-700">{c.comment}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(c.created_at).toLocaleString("ja-JP")}
-                  </p>
+                  {editingId === c.id ? (
+                    <div>
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="w-full p-2 border rounded h-20 resize-none"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleUpdateComment(c.id)}
+                          className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="px-3 py-1 bg-gray-300 text-sm rounded hover:bg-gray-400"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-gray-700">{c.comment}</p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-gray-400">
+                          {new Date(c.created_at).toLocaleString("ja-JP")}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEdit(c)}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={() => handleDeleteComment(c.id)}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
