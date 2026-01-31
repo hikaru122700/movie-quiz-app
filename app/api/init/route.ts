@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { initDatabase } from "@/lib/db";
+import { initDatabase, initQuestionCommentsTable } from "@/lib/db";
 
 export async function POST() {
   try {
     await initDatabase();
+    await initQuestionCommentsTable();
     return NextResponse.json({ message: "Database initialized successfully" });
   } catch (error) {
     console.error("Failed to initialize database:", error);

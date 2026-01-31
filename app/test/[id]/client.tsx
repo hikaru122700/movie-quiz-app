@@ -35,6 +35,9 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
   const [editTextA, setEditTextA] = useState("");
   const [editTextB, setEditTextB] = useState("");
 
+  // ローディング状態
+  const [isLoadingAnswer, setIsLoadingAnswer] = useState(true);
+
   const movieA = movies.find(m => m.id === selectedA);
   const movieB = movies.find(m => m.id === selectedB);
 
@@ -52,20 +55,59 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
     }
   }, [selectedB]);
 
-  // 問題切り替え時に状態をリセット & localStorageからコメント読み込み
+  // 問題切り替え時にDBから回答状況を復元 & 表示状態をリセット
   useEffect(() => {
-    setSelectedA(null);
-    setSelectedB(null);
-    setSubmitted(false);
+    const fetchAnswerState = async () => {
+      setIsLoadingAnswer(true);
+      try {
+        // DBから回答状況を復元
+        const res = await fetch(`/api/answers/test/latest?questionId=${question.id}`);
+        if (res.ok) {
+          const state = await res.json();
+          if (state) {
+            setSelectedA(state.selectedA);
+            setSelectedB(state.selectedB);
+            setSubmitted(state.submitted);
+          } else {
+            setSelectedA(null);
+            setSelectedB(null);
+            setSubmitted(false);
+          }
+        } else {
+          setSelectedA(null);
+          setSelectedB(null);
+          setSubmitted(false);
+        }
+      } catch {
+        setSelectedA(null);
+        setSelectedB(null);
+        setSubmitted(false);
+      }
+
+      // DBからコメント読み込み
+      try {
+        const res = await fetch(`/api/comments/test?questionId=${question.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setComment(data?.comment || "");
+        } else {
+          setComment("");
+        }
+      } catch {
+        setComment("");
+      }
+
+      setIsLoadingAnswer(false);
+    };
+
+    fetchAnswerState();
+
+    // 表示状態をリセット
     setCommentSaved(false);
     setShowStoryA(false);
     setShowStoryB(false);
     setShowCommentsA(false);
     setShowCommentsB(false);
-
-    // localStorageからコメント読み込み
-    const savedComment = localStorage.getItem(`test_comment_${question.id}`);
-    setComment(savedComment || "");
   }, [question.id]);
 
   const fetchMovieComments = async (movieId: number, setter: (comments: MovieComment[]) => void) => {
@@ -100,10 +142,18 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
     }
   };
 
-  const handleSaveComment = () => {
-    localStorage.setItem(`test_comment_${question.id}`, comment);
-    setCommentSaved(true);
-    setTimeout(() => setCommentSaved(false), 2000);
+  const handleSaveComment = async () => {
+    try {
+      await fetch("/api/comments/test", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: question.id, comment }),
+      });
+      setCommentSaved(true);
+      setTimeout(() => setCommentSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save comment:", error);
+    }
   };
 
   const handleSaveMovieComment = async (movieId: number, commentText: string, isA: boolean) => {
@@ -250,6 +300,14 @@ export default function TestQuestionClient({ question, movies, totalQuestions }:
       </div>
     );
   };
+
+  if (isLoadingAnswer) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="text-gray-500">読み込み中...</div>
+      </div>
+    );
+  }
 
   return (
     <div>

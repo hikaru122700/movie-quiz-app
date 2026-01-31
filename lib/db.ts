@@ -370,3 +370,98 @@ export async function getFictionNounsCount() {
   `;
   return parseInt(result[0].count, 10);
 }
+
+// 問題コメントテーブル初期化
+export async function initQuestionCommentsTable() {
+  const db = getSQL();
+
+  // Practice問題コメント
+  await db`
+    CREATE TABLE IF NOT EXISTS practice_question_comments (
+      id SERIAL PRIMARY KEY,
+      question_index INTEGER NOT NULL UNIQUE,
+      comment TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  // Test問題コメント
+  await db`
+    CREATE TABLE IF NOT EXISTS test_question_comments (
+      id SERIAL PRIMARY KEY,
+      question_id INTEGER NOT NULL UNIQUE,
+      comment TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+}
+
+// Practice問題の最新回答取得
+export async function getLatestPracticeAnswer(questionIndex: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM practice_answers
+    WHERE question_index = ${questionIndex}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  return result[0] || null;
+}
+
+// Test問題の最新回答取得
+export async function getLatestTestAnswer(questionId: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM test_answers
+    WHERE question_id = ${questionId}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  return result[0] || null;
+}
+
+// Practiceコメント取得
+export async function getPracticeComment(questionIndex: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM practice_question_comments
+    WHERE question_index = ${questionIndex}
+  `;
+  return result[0] || null;
+}
+
+// Practiceコメント保存/更新
+export async function upsertPracticeComment(questionIndex: number, comment: string) {
+  const db = getSQL();
+  const result = await db`
+    INSERT INTO practice_question_comments (question_index, comment)
+    VALUES (${questionIndex}, ${comment})
+    ON CONFLICT (question_index)
+    DO UPDATE SET comment = ${comment}, updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  return result[0];
+}
+
+// Testコメント取得
+export async function getTestComment(questionId: number) {
+  const db = getSQL();
+  const result = await db`
+    SELECT * FROM test_question_comments
+    WHERE question_id = ${questionId}
+  `;
+  return result[0] || null;
+}
+
+// Testコメント保存/更新
+export async function upsertTestComment(questionId: number, comment: string) {
+  const db = getSQL();
+  const result = await db`
+    INSERT INTO test_question_comments (question_id, comment)
+    VALUES (${questionId}, ${comment})
+    ON CONFLICT (question_id)
+    DO UPDATE SET comment = ${comment}, updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  return result[0];
+}

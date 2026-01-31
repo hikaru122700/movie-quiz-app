@@ -66,6 +66,9 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
   // 融合ストーリー名詞
   const [fictionNouns, setFictionNouns] = useState<string[]>([]);
 
+  // ローディング状態
+  const [isLoadingAnswer, setIsLoadingAnswer] = useState(true);
+
   const movieA = movies.find(m => m.id === selectedA);
   const movieB = movies.find(m => m.id === selectedB);
   const correctMovieA = movies.find(m => m.id === question.id_a);
@@ -113,26 +116,52 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
     }
   }, [question.id_b]);
 
-  // 問題切り替え時にlocalStorageから回答状況を復元 & 表示状態をリセット
+  // 問題切り替え時にDBから回答状況を復元 & 表示状態をリセット
   useEffect(() => {
-    // localStorageから回答状況を復元
-    const savedState = localStorage.getItem(`practice_answer_${question.index}`);
-    if (savedState) {
+    const fetchAnswerState = async () => {
+      setIsLoadingAnswer(true);
       try {
-        const state = JSON.parse(savedState);
-        setSelectedA(state.selectedA);
-        setSelectedB(state.selectedB);
-        setSubmitted(state.submitted);
+        // DBから回答状況を復元
+        const res = await fetch(`/api/answers/practice/latest?questionIndex=${question.index}`);
+        if (res.ok) {
+          const state = await res.json();
+          if (state) {
+            setSelectedA(state.selectedA);
+            setSelectedB(state.selectedB);
+            setSubmitted(state.submitted);
+          } else {
+            setSelectedA(null);
+            setSelectedB(null);
+            setSubmitted(false);
+          }
+        } else {
+          setSelectedA(null);
+          setSelectedB(null);
+          setSubmitted(false);
+        }
       } catch {
         setSelectedA(null);
         setSelectedB(null);
         setSubmitted(false);
       }
-    } else {
-      setSelectedA(null);
-      setSelectedB(null);
-      setSubmitted(false);
-    }
+
+      // DBからコメント読み込み
+      try {
+        const res = await fetch(`/api/comments/practice?questionIndex=${question.index}`);
+        if (res.ok) {
+          const data = await res.json();
+          setComment(data?.comment || "");
+        } else {
+          setComment("");
+        }
+      } catch {
+        setComment("");
+      }
+
+      setIsLoadingAnswer(false);
+    };
+
+    fetchAnswerState();
 
     // 表示状態をリセット
     setCommentSaved(false);
@@ -153,10 +182,6 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
     setCorrectEditingIdB(null);
     setCorrectEditTextA("");
     setCorrectEditTextB("");
-
-    // localStorageからコメント読み込み
-    const savedComment = localStorage.getItem(`practice_comment_${question.index}`);
-    setComment(savedComment || "");
   }, [question.index]);
 
   const fetchPredictions = async () => {
@@ -220,13 +245,6 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
     if (selectedA === null || selectedB === null) return;
     setSubmitted(true);
 
-    // 回答状況をlocalStorageに保存
-    localStorage.setItem(`practice_answer_${question.index}`, JSON.stringify({
-      selectedA,
-      selectedB,
-      submitted: true,
-    }));
-
     try {
       await fetch("/api/answers/practice", {
         method: "POST",
@@ -245,10 +263,18 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
     }
   };
 
-  const handleSaveComment = () => {
-    localStorage.setItem(`practice_comment_${question.index}`, comment);
-    setCommentSaved(true);
-    setTimeout(() => setCommentSaved(false), 2000);
+  const handleSaveComment = async () => {
+    try {
+      await fetch("/api/comments/practice", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionIndex: question.index, comment }),
+      });
+      setCommentSaved(true);
+      setTimeout(() => setCommentSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save comment:", error);
+    }
   };
 
   const handleSaveMovieComment = async (movieId: number, commentText: string, isA: boolean) => {
@@ -543,6 +569,14 @@ export default function PracticeQuestionClient({ question, movies, totalQuestion
       </div>
     );
   };
+
+  if (isLoadingAnswer) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="text-gray-500">読み込み中...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
